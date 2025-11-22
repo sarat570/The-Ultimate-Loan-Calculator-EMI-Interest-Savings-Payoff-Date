@@ -13,25 +13,17 @@
     <!-- Load jsPDF for PDF generation -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
-    <!-- Font Awesome for Icons -->
+    <!-- ** NEW: Added Font Awesome for Icons ** -->
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     
-    <!-- Google Analytics 4 Tracking Code (G-9BYV07VVG) -->
-    <script async src="https://www.googletagmanager.com/gtag/js?id=G-9BYV07VVG"></script>
-    <script>
-      window.dataLayer = window.dataLayer || [];
-      function gtag(){dataLayer.push(arguments);}
-      gtag('js', new Date());
-    
-      gtag('config', 'G-9BYV07VVG'); 
-    </script>
-    <!-- End Google Analytics 4 Tracking Code -->
-
     <style>
         /* Custom styles for better aesthetics */
         :root {
             --primary-color: #4f46e5; /* Indigo 600 */
             --bg-color: #f8fafc; /* Slate 50 */
+            --prepayment-color: #059669; /* Emerald 600 */
+            --variable-rate-color: #f59e0b; /* Amber 500 */
+            --prepayment-emi-color: #10b981; /* Emerald 500 for the new box */
         }
         body {
             font-family: 'Inter', sans-serif;
@@ -52,7 +44,7 @@
             background-color: #fecaca; /* Red 100 */
             color: #b91c1c; /* Red 700 */
         }
-        /* Fix: Remove scrollers/spinners from number inputs */
+        /* Fix: Remove scrollers/spinners from Loan Amount input */
         input[type=number]::-webkit-outer-spin-button,
         input[type=number]::-webkit-inner-spin-button {
             -webkit-appearance: none;
@@ -62,11 +54,20 @@
         input[type=number] {
             -moz-appearance: textfield;
         }
+        /* Sets a minimum height for the containers holding the top two charts for good alignment on desktop */
+        .top-chart-container {
+            min-height: 350px; 
+        }
         /* Enhanced Focus Styles */
         input:focus, select:focus, button:focus {
             outline: none;
             box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.4); /* Indigo 600 focus ring */
             border-color: #4f46e5;
+        }
+        /* Style for the Rate Change removal button */
+        .remove-rate-btn:hover {
+            background-color: #fff9ed; /* Amber 50 */
+            color: var(--variable-rate-color); 
         }
     </style>
 </head>
@@ -100,6 +101,7 @@
                 <label for="loanAmount" class="block text-sm font-medium text-gray-700 mb-1">
                     <i class="fa-solid fa-wallet text-gray-400 mr-2" style="width: 1.25em;"></i>Loan Amount (<span id="currencySymbol1">₹</span>)
                 </label>
+                <!-- Changed value="1000000" to value="" and updated placeholder -->
                 <input type="number" id="loanAmount" value="" min="1" placeholder="e.g., 1000000"
                         class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
             </div>
@@ -119,13 +121,19 @@
                 </select>
             </div>
 
-            <!-- 3. Annual Interest Rate (NUMBER INPUT with 0.01 STEP) -->
+            <!-- 3. Annual Interest Rate (NUMBER INPUT with 0.01 STEP) - UPDATED -->
             <div>
                 <label for="annualRate" class="block text-sm font-medium text-gray-700 mb-1">
                     <i class="fa-solid fa-percentage text-gray-400 mr-2" style="width: 1.25em;"></i>Annual Interest Rate (%)
                 </label>
+                <!-- Changed value="8.5" to value="" and updated placeholder -->
                 <input type="number" id="annualRate" value="" min="0.01" step="0.01" placeholder="e.g., 8.5"
                     class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
+                <!-- NEW: Variable Rate Checkbox -->
+                <div class="mt-2 flex items-center">
+                    <input id="variableRateCheckbox" type="checkbox" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                    <label for="variableRateCheckbox" class="ml-2 block text-xs font-medium text-gray-700">Variable Rate</label>
+                </div>
             </div>
             
             <!-- 4. Loan Term (Years & Months) - SPLIT INPUT -->
@@ -135,10 +143,12 @@
                 </label>
                 <div class="flex space-x-2">
                     <div class="flex-1">
+                        <!-- Changed value="10" to value="" -->
                         <input type="number" id="loanTermYears" value="" min="0" placeholder="Years"
                             class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
                     </div>
                     <div class="flex-1">
+                        <!-- Changed value="0" to value="" and updated placeholder -->
                         <input type="number" id="loanTermMonths" value="" min="0" max="11" placeholder="Months"
                             class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
                     </div>
@@ -154,6 +164,23 @@
                         class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-indigo-500 focus:border-indigo-500 transition duration-150">
             </div>
         </div>
+
+        <!-- NEW: Variable Rate Changes Section -->
+        <div id="rateChangesContainerWrapper" class="p-4 bg-amber-50 rounded-lg shadow-inner mb-6 border border-amber-200 hidden">
+            <h3 class="text-base font-bold text-amber-700 mb-3 text-center">
+                <i class="fa-solid fa-chart-line text-amber-500 mr-2"></i>Variable Rate Schedule
+            </h3>
+            <p class="text-xs text-gray-500 mb-3 text-center">Define the new annual interest rate that takes effect starting from the specified payment month (Month #2 or later).</p>
+            
+            <div id="rateChangesContainer" class="space-y-3">
+                <!-- Dynamic rate change entries will be inserted here by JS -->
+            </div>
+            <button type="button" id="addRateChangeBtn" class="mt-4 text-sm font-medium text-amber-600 hover:text-amber-800 flex items-center">
+                <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path></svg>
+                Add Rate Change
+            </button>
+        </div>
+
 
         <!-- Current Loan Status -->
         <div id="loanStatusBox" class="p-3 mb-6 hidden rounded-lg shadow-sm border text-sm font-medium">
@@ -171,6 +198,7 @@
                 <label for="monthlyExtraPrincipal" class="block text-sm font-medium text-gray-700 mb-1 font-bold">
                     <i class="fa-solid fa-repeat text-gray-400 mr-2" style="width: 1.25em;"></i>Monthly Additional Principal (<span id="currencySymbol2">₹</span>)
                 </label>
+                <!-- Changed value="0" to value="" and updated placeholder -->
                 <input type="number" id="monthlyExtraPrincipal" value="" min="0" placeholder="e.g., 5000 (optional)"
                         class="mt-1 block w-full rounded-lg border-gray-300 shadow-sm p-3 focus:ring-emerald-500 focus:border-emerald-500 transition duration-150">
                 <p class="text-xs text-gray-500 mt-1">This fixed amount is paid towards principal *every* month, reducing your interest rapidly.</p>
@@ -200,20 +228,6 @@
         <!-- Error/Result Message -->
         <div id="messageBox" class="mt-4 p-3 hidden rounded-lg text-sm font-medium" role="alert"></div>
 
-        <!-- CTA Placement for Monetization (Inserted here!) -->
-        <div class="mt-8 p-6 bg-yellow-50 rounded-xl shadow-lg border border-yellow-200 text-center">
-            <h3 class="text-xl font-bold text-yellow-800 mb-2">💵 Ready to Save Even More?</h3>
-            <p class="text-gray-700 mb-4">You're saving thousands with prepayments. Now, slash your rate entirely!</p>
-            
-            <!-- ** AFFILIATE/AD CODE GOES HERE ** -->
-            <a href="YOUR_AFFILIATE_LINK_HERE" 
-               target="_blank" 
-               class="inline-block px-8 py-3 bg-red-600 text-white font-bold rounded-lg shadow-xl hover:bg-red-700 transition duration-300 transform hover:scale-105">
-                Compare Top Loan Rates & Start Saving! 
-                <i class="fa-solid fa-arrow-up-right-from-square ml-2"></i>
-            </a>
-            <!-- ********************************** -->
-        </div>
 
         <!-- Results Display Section -->
         <div id="resultsContainer" class="mt-8 pt-6 border-t border-gray-200 hidden">
@@ -265,7 +279,7 @@
                     <p id="originalTermDisplay" class="text-lg font-bold text-gray-800 mt-1">--</p>
                 </div>
                 <!-- 6. Original End Date -->
-                <div class="bg-gray-50 p-4 rounded-lg shadow-sm">
+                <div class="bg-50 p-4 rounded-lg shadow-sm">
                     <p class="text-sm font-medium text-gray-600 flex items-center">
                         <i class="fa-solid fa-calendar-xmark mr-2" style="width: 1.25em;"></i>Original End Date
                     </p>
@@ -293,6 +307,7 @@
                 <!-- 9. New Term (Months) -->
                 <div class="bg-yellow-50 p-4 rounded-lg shadow-sm">
                     <p class="text-sm font-medium text-yellow-700 flex items-center">
+                        <!-- UPDATED ICON to fa-stopwatch for distinct visual cue -->
                         <i class="fa-solid fa-stopwatch mr-2" style="width: 1.25em;"></i>New Term (Months)
                     </p>
                     <p id="newTermDisplay" class="text-lg font-bold text-yellow-800 mt-1">--</p>
@@ -320,8 +335,53 @@
                 </div>
             </div>
 
+            <!-- NEW ROW: Loan Adjustment Scenarios (REVISED STRUCTURE) -->
+            <h2 class="text-2xl font-bold text-gray-800 mb-4 mt-6 text-center border-t pt-4">
+                <i class="fa-solid fa-rotate text-gray-700 mr-2"></i>Loan Adjustment Scenarios
+            </h2>
+             <p class="text-xs text-gray-500 mb-4 text-center">Compare the outcomes of two common bank adjustments when rate changes or extra payments are applied, benchmarked against the **Original Fixed-Rate Plan**.</p>
+            
+            <div id="adjustmentScenariosContainer" class="hidden">
+                 <!-- Scenario Comparison Table -->
+                <div class="scroll-container overflow-x-auto mb-8 rounded-lg shadow-md border border-gray-200">
+                    <table class="min-w-full divide-y divide-gray-200 text-sm">
+                        <thead class="bg-gray-100">
+                            <tr>
+                                <th scope="col" class="px-3 py-3 text-left font-bold text-gray-700 uppercase tracking-wider">
+                                    Scenario
+                                </th>
+                                <th scope="col" class="px-3 py-3 text-center font-bold text-gray-700 uppercase tracking-wider">
+                                    Input Rate/Payment
+                                </th>
+                                <th scope="col" class="px-3 py-3 text-center font-bold text-indigo-600 uppercase tracking-wider">
+                                    New Monthly EMI
+                                </th>
+                                <th scope="col" class="px-3 py-3 text-center font-bold text-yellow-600 uppercase tracking-wider">
+                                    New Payoff Term
+                                </th>
+                                <th scope="col" class="px-3 py-3 text-center font-bold text-red-600 uppercase tracking-wider">
+                                    Total Interest Paid
+                                </th>
+                            </tr>
+                        </thead>
+                        <tbody id="adjustmentTableBody" class="bg-white divide-y divide-gray-200">
+                            <!-- Rows will be inserted by JS -->
+                        </tbody>
+                    </table>
+                </div>
 
-            <!-- CHART LAYOUT: Full Width Vertical Stack (Maximum Readability) -->
+                <!-- NEW CHART: Total Cost Comparison for Scenarios -->
+                <div id="scenarioCostChartContainer" class="mt-8">
+                    <h3 class="text-xl font-bold text-gray-800 mb-4 mt-6 text-center">
+                        <i class="fa-solid fa-chart-bar text-gray-700 mr-2"></i>Total Cost Comparison (Principal vs. Interest)
+                    </h3>
+                    <div class="p-4 bg-white rounded-lg shadow-md border border-gray-200">
+                        <canvas id="scenarioCostChart" style="max-height: 250px;"></canvas>
+                        <p class="text-xs text-gray-500 mt-2 text-center">Visually compares the total repayment outflow (Principal + Interest) for all scenarios, highlighting differences in total interest cost.</p>
+                    </div>
+                </div>
+            </div>
+            
             
             <!-- Chart 1: Remaining Loan Balance Over Time (Full Width) -->
             <div class="mt-8">
@@ -412,6 +472,7 @@
         let loanBalanceChart; // Global variable for the Line Chart
         let emiBreakdownChart; // Global variable for the Bar Chart
         let totalCostChart; // Global variable for the Total Cost Stacked Bar Chart
+        let scenarioCostChart; // NEW: Global variable for the Scenario Cost Stacked Bar Chart
         let currentCurrencyCode = 'INR'; // Default, updated on DOMContentLoaded
 
         document.addEventListener('DOMContentLoaded', () => {
@@ -421,7 +482,6 @@
             }
             
             const loanAmountEl = document.getElementById('loanAmount');
-            const loanTypeEl = document.getElementById('loanType');
             const annualRateEl = document.getElementById('annualRate');
             const loanTermYearsEl = document.getElementById('loanTermYears'); 
             const loanTermMonthsEl = document.getElementById('loanTermMonths'); 
@@ -434,10 +494,23 @@
             const resultsContainer = document.getElementById('resultsContainer');
             const loanStatusBox = document.getElementById('loanStatusBox'); 
             
+            // NEW ELEMENTS FOR VARIABLE RATE
+            const variableRateCheckbox = document.getElementById('variableRateCheckbox');
+            const rateChangesContainerWrapper = document.getElementById('rateChangesContainerWrapper');
+            const rateChangesContainer = document.getElementById('rateChangesContainer');
+            const addRateChangeBtn = document.getElementById('addRateChangeBtn');
+            let rateChangeIdCounter = 0; // Counter for unique rate change IDs
+            
+            // NEW ELEMENTS for Adjustment Scenarios Table & Wrapper
+            const adjustmentScenariosContainer = document.getElementById('adjustmentScenariosContainer');
+            const adjustmentTableBody = document.getElementById('adjustmentTableBody');
+            const scenarioCostChartContainer = document.getElementById('scenarioCostChartContainer');
+
+
             const downloadCsvBtn = document.getElementById('downloadCsvBtn');
             const downloadPdfBtn = document.getElementById('downloadPdfBtn');
 
-            // Analysis Displays
+            // Analysis Displays (rest of the elements)
             const originalInterestDisplay = document.getElementById('originalInterestDisplay');
             const originalOutflowDisplay = document.getElementById('originalOutflowDisplay');
             const acceleratedOutflowDisplay = document.getElementById('acceleratedOutflowDisplay');
@@ -489,9 +562,14 @@
                 return symbolMatch ? symbolMatch[0] : currencyCode;
             }
 
+            // FIX: Updated to include dynamic prepayment symbols
             function updateCurrencySymbols(currencyCode) {
                 const symbol = getCurrencySymbol(currencyCode);
                 currencySymbolElements.forEach(el => {
+                    el.textContent = symbol;
+                });
+                // NEW: Update all dynamic prepayment symbols
+                document.querySelectorAll('.dynamic-currency-symbol').forEach(el => {
                     el.textContent = symbol;
                 });
             }
@@ -504,7 +582,7 @@
                     currentCurrencyCode = selectedValue;
                 }
                 updateCurrencySymbols(currentCurrencyCode);
-                calculateSchedule(false); 
+                calculateSchedule(false); // Silent calculation needed for currency change refresh
             });
 
             updateCurrencySymbols(currentCurrencyCode);
@@ -638,16 +716,106 @@
             function clearMessage() {
                 messageBox.classList.add('hidden');
             }
+            
+            // --- NEW: Variable Rate Change Functions ---
+            
+            function addRateChangeInput(defaultMonth = '', defaultRate = '') {
+                rateChangeIdCounter++;
+                const id = `rate-change-${rateChangeIdCounter}`;
+
+                const div = document.createElement('div');
+                div.id = id;
+                div.className = 'grid grid-cols-12 gap-2 items-end';
+                div.innerHTML = `
+                    <div class="col-span-6">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">New Rate from Month #</label>
+                        <input type="number" data-type="month" value="${defaultMonth}" min="2"
+                            class="block w-full rounded-lg border-gray-300 shadow-sm p-2 focus:ring-amber-500 focus:border-amber-500 text-sm">
+                    </div>
+                    <div class="col-span-4">
+                        <label class="block text-xs font-medium text-gray-500 mb-1">New Annual Rate (%)</label>
+                        <input type="number" data-type="rate" value="${defaultRate}" min="0.01" step="0.01"
+                            class="block w-full rounded-lg border-gray-300 shadow-sm p-2 focus:ring-amber-500 focus:border-amber-500 text-sm">
+                    </div>
+                    <div class="col-span-2 flex justify-end">
+                        <button type="button" class="remove-btn remove-rate-btn bg-amber-100 text-amber-600" data-remove-id="${id}">
+                            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.86 11.14a2 2 0 01-2 1.86H7.86a2 2 0 01-2-1.86L5 7m1 0h12m-8 4v6m4-6v6"></path></svg>
+                        </button>
+                    </div>
+                `;
+                rateChangesContainer.appendChild(div);
+
+                // Add event listener to the remove button
+                div.querySelector('[data-remove-id]').addEventListener('click', (e) => {
+                    document.getElementById(e.currentTarget.dataset.removeId).remove();
+                    calculateSchedule(false); 
+                });
+                
+                // Add event listeners to the new month/rate inputs for immediate recalculation
+                div.querySelectorAll('input[type="number"]').forEach(input => {
+                    // *** IMPORTANT CHANGE: Keep the event listener for rate/prepayment tables ***
+                    input.addEventListener('input', () => calculateSchedule(false)); 
+                });
+            }
+
+            variableRateCheckbox.addEventListener('change', () => {
+                if (variableRateCheckbox.checked) {
+                    rateChangesContainerWrapper.classList.remove('hidden');
+                } else {
+                    rateChangesContainerWrapper.classList.add('hidden');
+                }
+                calculateSchedule(false);
+            });
+            
+            addRateChangeBtn.addEventListener('click', () => addRateChangeInput());
+
+            /**
+             * Gathers and validates rate changes.
+             */
+            function getRateChanges(maxMonth) {
+                const changes = [];
+                const rateEntries = rateChangesContainer.querySelectorAll('.grid.grid-cols-12');
+
+                for (let i = 0; i < rateEntries.length; i++) {
+                    const monthInput = rateEntries[i].querySelector('input[data-type="month"]');
+                    const rateInput = rateEntries[i].querySelector('input[data-type="rate"]');
+                    
+                    // FIX: Check for empty string before parsing. Only process if both have values.
+                    if (!monthInput.value && !rateInput.value) continue;
+                    
+                    const month = parseInt(monthInput.value, 10);
+                    const rate = parseFloat(rateInput.value);
+
+                    if (isNaN(month) || isNaN(rate) || rate <= 0) {
+                        throw new Error(`Invalid month or rate in rate change entry #${i + 1}. Please ensure both are positive numbers.`);
+                    }
+
+                    if (month < 2 || month > maxMonth) {
+                        throw new Error(`Month value (${month}) for rate change entry #${i + 1} must be between 2 and the total term (${maxMonth}). The initial rate applies for month #1.`);
+                    }
+
+                    changes.push({ month: month, rate: rate });
+                }
+                
+                // Sort by month ascending to ensure correct application sequence
+                changes.sort((a, b) => a.month - b.month);
+                
+                return changes;
+            }
+
+            // --- End Variable Rate Change Functions ---
+
 
             // Function to add a dynamic pre-payment input group
             function addPrepaymentInput(defaultMonth = '', defaultAmount = '') {
                 prepaymentIdCounter++;
                 const id = `prepay-${prepaymentIdCounter}`;
-                const symbol = getCurrencySymbol(currentCurrencyCode);
+                const symbol = getCurrencySymbol(currentCurrencyCode); // Get current symbol
 
                 const div = document.createElement('div');
                 div.id = id;
                 div.className = 'grid grid-cols-12 gap-2 items-end';
+                // FIX: Added dynamic-currency-symbol class to the span inside the label
                 div.innerHTML = `
                     <div class="col-span-4">
                         <label class="block text-xs font-medium text-gray-500 mb-1">Month #</label>
@@ -655,7 +823,7 @@
                             class="block w-full rounded-lg border-gray-300 shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
                     </div>
                     <div class="col-span-6">
-                        <label class="block text-xs font-medium text-gray-500 mb-1">Amount (${symbol})</label>
+                        <label class="block text-xs font-medium text-gray-500 mb-1">Amount (<span class="dynamic-currency-symbol">${symbol}</span>)</label>
                         <input type="number" data-type="amount" value="${defaultAmount}" min="1"
                             class="block w-full rounded-lg border-gray-300 shadow-sm p-2 focus:ring-emerald-500 focus:border-emerald-500 text-sm">
                     </div>
@@ -675,6 +843,7 @@
                 
                 // Add event listeners to the new month/amount inputs for immediate recalculation
                 div.querySelectorAll('input[type="number"]').forEach(input => {
+                    // *** IMPORTANT CHANGE: Keep the event listener for rate/prepayment tables ***
                     input.addEventListener('input', () => calculateSchedule(false)); // Recalculate, no scroll
                 });
             }
@@ -690,12 +859,15 @@
                     const monthInput = prepaymentEntries[i].querySelector('input[data-type="month"]');
                     const amountInput = prepaymentEntries[i].querySelector('input[data-type="amount"]');
                     
+                    // FIX: Check for empty string before parsing. Only process if both have values.
+                    if (!monthInput.value && !amountInput.value) continue;
+                    
                     const month = parseInt(monthInput.value, 10);
                     const amount = parseFloat(amountInput.value);
 
                     // Skip empty entries
-                    if ((!monthInput.value && !amountInput.value) || (isNaN(month) && isNaN(amount))) continue;
-                    
+                    // if ((!monthInput.value && !amountInput.value) || (isNaN(month) && isNaN(amount))) continue; // OLD logic
+
                     if (isNaN(month) || isNaN(amount) || amount <= 0) {
                         throw new Error(`Invalid month or amount in pre-payment entry #${i + 1}. Please ensure both are positive numbers.`);
                     }
@@ -821,9 +993,97 @@
                     }
                 });
             }
+            
+            /**
+             * NEW CHART FUNCTION: Compares Total Cost (Principal + Interest) for all scenarios.
+             */
+            function renderScenarioCostChart(principal, originalInterest, variableOnlyInterest, prepaymentInterest, labels) {
+                const formatter = getFormatter(currentCurrencyCode);
+
+                if (scenarioCostChart) scenarioCostChart.destroy();
+
+                const totalCosts = [
+                    principal + originalInterest,
+                    principal + variableOnlyInterest,
+                    principal + prepaymentInterest
+                ];
+                
+                // Only render if we have data for at least two scenarios (Original + one adjustment)
+                if (labels.length < 2) {
+                    scenarioCostChartContainer.classList.add('hidden');
+                    return;
+                }
+                scenarioCostChartContainer.classList.remove('hidden');
+
+                const ctx = document.getElementById('scenarioCostChart').getContext('2d');
+                scenarioCostChart = new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: labels,
+                        datasets: [
+                            {
+                                label: 'Principal',
+                                data: [principal, principal, principal],
+                                backgroundColor: '#4ade80', // Green 400
+                                stack: 'Stack 0',
+                                barPercentage: 0.7,
+                            },
+                            {
+                                label: 'Interest Cost',
+                                data: [originalInterest, variableOnlyInterest, prepaymentInterest],
+                                backgroundColor: '#dc2626', // Red 600
+                                stack: 'Stack 0',
+                                barPercentage: 0.7,
+                            }
+                        ]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        plugins: {
+                            title: { display: false },
+                            legend: { position: 'bottom', labels: { font: { size: 10 } } },
+                            tooltip: {
+                                mode: 'index', intersect: false,
+                                callbacks: {
+                                    title: (items) => items[0].label,
+                                    label: (context) => {
+                                        let label = context.dataset.label || '';
+                                        if (label) label += ': ';
+                                        label += formatter.format(context.parsed.y);
+                                        return label;
+                                    }
+                                }
+                            },
+                            datalabels: {
+                                color: (context) => context.dataset.label === 'Principal' ? '#1f2937' : '#fff', 
+                                font: { weight: 'bold', size: 10 },
+                                anchor: 'center',
+                                align: 'center',
+                                formatter: (value) => {
+                                    const total = totalCosts[context.dataIndex];
+                                    if (value < (total * 0.05) && value < 1000) return '';
+                                    return formatter.format(value).replace('.00', '');
+                                }
+                            }
+                        },
+                        scales: {
+                            x: { stacked: true },
+                            y: {
+                                stacked: true,
+                                beginAtZero: true,
+                                title: { display: true, text: `Total Cost (${getCurrencySymbol(currentCurrencyCode)})` },
+                                ticks: {
+                                    callback: (value) => formatter.format(value).replace('.00', '')
+                                }
+                            }
+                        }
+                    }
+                });
+            }
 
 
-            function renderCharts(principal, labels, originalBalanceData, acceleratedBalanceData, scheduledPrincipalData, interestData, interestSaved, totalExtraPrincipalPaid, originalTotalOutflow, acceleratedTotalOutflow, originalInterest) {
+            function renderCharts(principal, labels, originalBalanceData, acceleratedBalanceData, scheduledPrincipalData, interestData, interestSaved, totalExtraPrincipalPaid, originalTotalOutflow, acceleratedTotalOutflow, originalInterest, scenarioData) {
                 const formatter = getFormatter(currentCurrencyCode);
 
                 // --- 1. Loan Balance Chart (Line Chart) ---
@@ -942,33 +1202,233 @@
                     }
                 });
                 
-                // --- 3. Total Cost Comparison (Stacked Bar Chart) ---
+                // --- 3. Total Loan Cost Comparison (Stacked Bar Chart) ---
                 const acceleratedInterestPaid = acceleratedTotalOutflow - principal;
                 renderTotalCostChart(principal, originalInterest, acceleratedInterestPaid);
+                
+                // --- 4. Scenario Cost Comparison Chart (Stacked Bar Chart) ---
+                if (scenarioData && scenarioData.length > 0) {
+                     // Filter only the relevant scenarios for the chart (Original + 1 & 3, keeping term constant)
+                     const chartScenarios = scenarioData.filter(d => 
+                        d.label === 'Original Fixed Rate' || 
+                        d.label === 'New EMI (Variable Rate Only)' || 
+                        d.label === 'Reduced EMI (With Prepayments)'
+                     );
+
+                     // Map data for the chart
+                     const chartLabels = chartScenarios.map(d => d.label.replace('(Variable Rate Only)', '').replace('(With Prepayments)', ''));
+                     const scenarioInterests = chartScenarios.map(d => d.interest);
+                     
+                     // Pass filtered and mapped data to the chart renderer
+                     renderScenarioCostChart(principal, 
+                         scenarioInterests[0] || 0, // Original
+                         scenarioInterests.length > 1 ? scenarioInterests[1] : 0, // Variable Only (Index 1 if present)
+                         scenarioInterests.length > 2 ? scenarioInterests[2] : 0, // Prepayments (Index 2 if present)
+                         chartLabels
+                     );
+                } else {
+                    if (scenarioCostChart) scenarioCostChart.destroy();
+                    scenarioCostChartContainer.classList.add('hidden');
+                }
             }
 
             // --- END CHART FUNCTIONALITY ---
+            
+            // --- Helper function to get the monthly rate for a given payment month ---
+            function getCurrentMonthlyRate(paymentNum, initialRate, changes) {
+                let annualRate = initialRate;
+                for (const change of changes) {
+                    if (paymentNum >= change.month) {
+                        annualRate = change.rate;
+                    } else {
+                        // Since changes are sorted by month, we can break early
+                        break;
+                    }
+                }
+                return annualRate / 100 / 12;
+            }
+
+            /**
+             * Loan Adjustment Scenario 1 & 3 helper: Calculates the final EMI required 
+             * to pay off the remaining balance exactly at the original term, incorporating 
+             * variable rates and (optionally) prepayments.
+             * * @param {number} principal - The initial loan amount.
+             * @param {number} totalPayments - The original total term in months.
+             * @param {number} initialAnnualRate - The starting annual interest rate.
+             * @param {Array} rateChanges - Sorted array of rate changes.
+             * @param {object} prepayments - Map of lump sum prepayments {month: amount}.
+             * @param {number} monthlyExtraPrincipal - Fixed monthly extra principal.
+             * @param {number} initialEmi - The original calculated EMI (used as a starting point if no rate changes occur early).
+             * @returns {{emi: number, interest: number} | null} The new required fixed EMI and total interest, or null.
+             */
+            function calculateNewEmiForSameTerm(principal, totalPayments, initialAnnualRate, rateChanges, prepayments, monthlyExtraPrincipal, initialEmi) {
+                let balance = principal;
+                let currentEMI = initialEmi; // Use a mutable variable for the calculated EMI
+                let lastRecalculationMonth = 0;
+                let totalInterestPaid = 0;
+
+                // First Pass: Amortize only to find the new required EMI if needed due to rate changes/prepayments.
+                for (let p = 1; p <= totalPayments; p++) {
+                    const currentMonthlyRate = getCurrentMonthlyRate(p, initialAnnualRate, rateChanges);
+                    
+                    const lumpSum = prepayments[p] || 0;
+                    const extraPrincipalComponent = monthlyExtraPrincipal + lumpSum;
+                    
+                    // Trigger recalculation if the rate changes OR a prepayment is made OR the loan is starting (p=1).
+                    if (p > lastRecalculationMonth && (p === 1 || rateChanges.some(c => c.month === p) || lumpSum > 0 || monthlyExtraPrincipal > 0)) {
+                        
+                        const remainingMonths = totalPayments - p + 1;
+                        
+                        if (balance > 0 && remainingMonths > 0) {
+                            
+                            // 1. Calculate the Net Future Value (FV) of the loan *after* applying the lump sums/extra principal.
+
+                            let tempBalance = balance;
+                            
+                            // Find the balance *after* prepayment, but *before* the EMI principal component is applied.
+                            tempBalance = Math.round((tempBalance - extraPrincipalComponent) * 100) / 100;
+                            
+                            if (tempBalance <= 0) {
+                                // Loan is paid off early by prepayment, no new EMI needed
+                                return { emi: 0, interest: totalInterestPaid };
+                            }
+
+                            // The new EMI (X) must satisfy the amortization equation for the new balance (tempBalance)
+                            // over the remaining term (remainingMonths) at the new rate (currentMonthlyRate).
+
+                            const rate = currentMonthlyRate;
+                            const term = remainingMonths;
+
+                            let nextEmi;
+                            if (rate === 0) {
+                                nextEmi = tempBalance / term;
+                            } else {
+                                const powerTerm = Math.pow(1 + rate, term);
+                                nextEmi = tempBalance * (rate * powerTerm) / (powerTerm - 1);
+                            }
+                            currentEMI = Math.round(nextEmi * 100) / 100;
+                            lastRecalculationMonth = p;
+                        } else if (balance <= 0) {
+                            return { emi: 0, interest: totalInterestPaid }; // Already paid off
+                        }
+                    } 
+                    
+                    // Amortize using the newly calculated or existing EMI/rate
+                    let interestPaid = balance * currentMonthlyRate;
+                    let principalComponent = currentEMI - interestPaid; // Scheduled part of the EMI
+                    
+                    if (principalComponent < 0) {
+                        // Rate hike makes EMI < Interest. Principal reduction is only from extra payments.
+                        principalComponent = 0; 
+                    }
+
+                    const totalPrincipalPaid = principalComponent + extraPrincipalComponent;
+                    
+                    if (balance < totalPrincipalPaid) {
+                        principalComponent = Math.max(0, balance - extraPrincipalComponent);
+                        balance = 0;
+                        totalInterestPaid += interestPaid;
+                        return { emi: currentEMI, interest: Math.round(totalInterestPaid * 100) / 100 }; // Return the final required EMI
+                    }
+                    
+                    balance = Math.round((balance - totalPrincipalPaid) * 100) / 100;
+                    if (balance < 0) balance = 0;
+                    
+                    totalInterestPaid += interestPaid;
+
+                    if (balance === 0) {
+                        return { emi: currentEMI, interest: Math.round(totalInterestPaid * 100) / 100 };
+                    }
+                }
+                
+                // If loop finishes and balance is zero, return the last calculated EMI
+                if (balance <= 0) {
+                    return { emi: currentEMI, interest: Math.round(totalInterestPaid * 100) / 100 };
+                }
+                
+                // If loop finishes and balance > 0, the loan couldn't be paid off in the original term.
+                return null;
+            }
+
+            // --- 4b. Term Recalculation Simulation (Keeping Base EMI) - Variable Rate ONLY ---
+            function calculateNewTermForSameEmi(principal, initialAnnualRate, rateChanges, baseEmi) {
+                let balance = principal;
+                let paymentNum = 0;
+                let totalInterestPaid = 0;
+                
+                // Max iterations to prevent infinite loop if EMI is too low
+                const maxPayments = 1200; // 100 years
+
+                while (balance > 0.01 && paymentNum < maxPayments) {
+                    paymentNum++;
+                    
+                    const currentMonthlyRate = getCurrentMonthlyRate(paymentNum, initialAnnualRate, rateChanges);
+                    let monthlyEmi = baseEmi;
+                    
+                    let interestPaid = Math.round(balance * currentMonthlyRate * 100) / 100;
+                    
+                    // Check if EMI covers interest (if not, the balance increases)
+                    if (monthlyEmi < interestPaid) {
+                        // The user is not paying off the loan, term is effectively infinite.
+                        return { newTerm: Infinity, interest: Infinity };
+                    }
+
+                    let principalPaid = monthlyEmi - interestPaid;
+                    
+                    // Final Payment Check
+                    if (balance < principalPaid) {
+                        principalPaid = balance;
+                        monthlyEmi = principalPaid + interestPaid;
+                    }
+                    
+                    balance = Math.round((balance - principalPaid) * 100) / 100;
+                    if (balance < 0) balance = 0;
+
+                    totalInterestPaid += interestPaid;
+
+                    if (balance <= 0.01) break;
+                }
+                
+                if (paymentNum >= maxPayments) {
+                    return { newTerm: Infinity, interest: Infinity };
+                }
+
+                return { 
+                    newTerm: paymentNum, 
+                    interest: Math.round(totalInterestPaid * 100) / 100 
+                };
+            }
+
 
             // Main calculation logic
             function calculateSchedule(shouldScroll = false) { 
                 // --- UX START: Disable button and show loading text ---
-                calculateBtn.disabled = true;
-                calculateBtn.textContent = 'Calculating...';
+                if (shouldScroll) { // Only show loading state on explicit click
+                    calculateBtn.disabled = true;
+                    calculateBtn.textContent = 'Calculating...';
+                }
                 
                 const formatter = getFormatter(currentCurrencyCode);
                 
-                clearMessage();
-                resultsContainer.classList.add('hidden');
-                scheduleBody.innerHTML = '';
-                // Destroy old charts to clean up display if inputs are invalid
-                if (loanBalanceChart) loanBalanceChart.destroy();
-                if (emiBreakdownChart) emiBreakdownChart.destroy();
-                if (totalCostChart) totalCostChart.destroy(); // Destroy the old Total Cost Chart
-                
+                // Clear UI components only if an explicit calculation is triggered
+                if (shouldScroll) {
+                    clearMessage();
+                    resultsContainer.classList.add('hidden');
+                    scheduleBody.innerHTML = '';
+                    adjustmentTableBody.innerHTML = ''; // NEW: Clear Adjustment table
+                    adjustmentScenariosContainer.classList.add('hidden'); // NEW: Hide adjustment container
+                    
+                    // Destroy old charts to clean up display if inputs are invalid
+                    if (loanBalanceChart) loanBalanceChart.destroy();
+                    if (emiBreakdownChart) emiBreakdownChart.destroy();
+                    if (totalCostChart) totalCostChart.destroy(); 
+                    if (scenarioCostChart) scenarioCostChart.destroy(); // NEW: Destroy Scenario Cost Chart
+                }
+
 
                 // 1. Get and Validate Inputs
                 const principal = parseFloat(loanAmountEl.value);
-                const annualRate = parseFloat(annualRateEl.value);
+                const initialAnnualRate = parseFloat(annualRateEl.value); // Initial rate
                 const termYears = parseInt(loanTermYearsEl.value) || 0;
                 const termMonths = parseInt(loanTermMonthsEl.value) || 0;
                 const totalPayments = (termYears * 12) + termMonths;
@@ -977,11 +1437,10 @@
                 const startDateStr = startDateEl.value; 
 
                 // --- IMPORTANT: Check for missing critical inputs ---
-                if (isNaN(principal) || principal <= 0 || isNaN(annualRate) || annualRate <= 0 || totalPayments <= 0) {
+                if (isNaN(principal) || principal <= 0 || isNaN(initialAnnualRate) || initialAnnualRate <= 0 || totalPayments <= 0) {
                     
-                    // If it's a silent recalculation (shouldScroll=false) triggered by currency or input change,
-                    // and the fields are empty, just fail silently without showing an error box.
-                    if (!shouldScroll && (!loanAmountEl.value && !annualRateEl.value && totalPayments === 0)) {
+                    // If it's a silent recalculation (shouldScroll=false), just exit gracefully
+                    if (!shouldScroll) {
                          calculateBtn.disabled = false;
                          calculateBtn.textContent = 'Calculate Repayment Schedule';
                          return;
@@ -1000,7 +1459,19 @@
                 }
                 
                 // 2. Prepare Calculation Variables
-                const monthlyRate = annualRate / 100 / 12; // i
+                
+                // NEW: Get Rate Changes
+                let rateChanges = [];
+                if (variableRateCheckbox.checked) {
+                    try {
+                        rateChanges = getRateChanges(totalPayments);
+                    } catch (e) {
+                        displayMessage(e.message, 'error', shouldScroll);
+                        calculateBtn.disabled = false;
+                        calculateBtn.textContent = 'Calculate Repayment Schedule';
+                        return;
+                    }
+                }
                 
                 let lumpSumPrepayments = {};
                 try {
@@ -1013,17 +1484,23 @@
                     return;
                 }
 
-                // 3. Calculate Fixed Monthly Payment (EMI)
+                
+                // 3. Calculate Fixed Monthly Payment (EMI) - **NOTE: This EMI is only used for the ORIGINAL PLAN and the BASE EMI figure.**
+                // The fixed EMI is calculated based on the original rate and term.
+                const initialMonthlyRate = initialAnnualRate / 100 / 12; // i
+                
                 let emi;
-                if (monthlyRate === 0) {
+                if (initialMonthlyRate === 0) {
                     emi = principal / totalPayments;
                 } else {
-                    const powerTerm = Math.pow(1 + monthlyRate, totalPayments);
-                    emi = principal * (monthlyRate * powerTerm) / (powerTerm - 1);
+                    const powerTerm = Math.pow(1 + initialMonthlyRate, totalPayments);
+                    emi = principal * (initialMonthlyRate * powerTerm) / (powerTerm - 1);
                 }
                 emi = Math.round(emi * 100) / 100;
-
-                // --- Reference Calculation (for comparison & chart) ---
+                
+                
+                // --- Reference Calculation (for comparison & chart) - MUST BE FIXED RATE FOR COMPARISON ---
+                // The original plan for comparison should be based *only* on the initial rate.
                 let referenceTotalInterest = 0;
                 let originalBalanceRef = principal;
                 const originalBalanceData = [principal];
@@ -1031,7 +1508,11 @@
                 
                 for (let p = 1; p <= totalPayments; p++) {
                     chartLabels.push(p);
-                    let interestPaidRef = Math.round(originalBalanceRef * monthlyRate * 100) / 100;
+                    
+                    // The reference plan always uses the *initial* monthly rate
+                    const refMonthlyRate = initialMonthlyRate;
+                    
+                    let interestPaidRef = Math.round(originalBalanceRef * refMonthlyRate * 100) / 100;
                     let scheduledPrincipalRef = emi - interestPaidRef;
                     
                     if (originalBalanceRef < scheduledPrincipalRef + interestPaidRef) {
@@ -1049,8 +1530,110 @@
                 }
                 referenceTotalInterest = Math.round(referenceTotalInterest * 100) / 100;
                 const originalPayoffDate = getPaymentDate(startDateStr, totalPayments);
+
+
+                // --- 4a. EMI Recalculation Scenarios (Called only if variable rate or prepayments are present) ---
+                let sameTerm_newEmi_variableOnly = null;
+                let sameTerm_newEmi_variableOnly_interest = null;
+                let sameEmi_newTerm = totalPayments; 
+                let sameEmi_newPayoffDate = originalPayoffDate;
+                let sameEmi_newTerm_interest = referenceTotalInterest;
+                let sameTerm_newEmi_withPrepayments = null; 
+                let sameTerm_newEmi_withPrepayments_interest = null;
+
+                const hasRateChanges = variableRateCheckbox.checked && rateChanges.length > 0;
+                const hasPrepayments = monthlyExtraPrincipal > 0 || Object.keys(lumpSumPrepayments).length > 0;
                 
-                // 4. Generate Amortization Schedule (with all Pre-payments) - Accelerated Calculation
+                // Master list of scenario data for the new table/chart
+                const scenarioData = [{
+                    label: 'Original Fixed Rate',
+                    emi: emi,
+                    term: totalPayments,
+                    payoffDate: originalPayoffDate,
+                    interest: referenceTotalInterest,
+                    color: '#4f46e5'
+                }];
+
+
+                if (hasRateChanges || hasPrepayments) {
+                    
+                    // Scenario 1: Keep Term Constant (Find New EMI - Variable Rate ONLY)
+                    if (hasRateChanges) {
+                        const result = calculateNewEmiForSameTerm(
+                            principal, totalPayments, initialAnnualRate, rateChanges, 
+                            {}, 0, emi
+                        );
+                        if (result) {
+                            sameTerm_newEmi_variableOnly = result.emi;
+                            sameTerm_newEmi_variableOnly_interest = result.interest;
+                        }
+                        
+                        if (sameTerm_newEmi_variableOnly !== null) {
+                            scenarioData.push({
+                                label: 'New EMI (Variable Rate Only)',
+                                emi: sameTerm_newEmi_variableOnly,
+                                term: totalPayments,
+                                payoffDate: originalPayoffDate,
+                                interest: sameTerm_newEmi_variableOnly_interest,
+                                color: '#f59e0b'
+                            });
+                        }
+                    }
+                    
+                    // Scenario 2A: Keep EMI Constant (Find New Term - Variable Rate ONLY)
+                    if (hasRateChanges && !hasPrepayments) { // Only show this traditional option if no prepayments are involved
+                        const termResult = calculateNewTermForSameEmi(principal, initialAnnualRate, rateChanges, emi);
+                        sameEmi_newTerm = termResult.newTerm;
+                        sameEmi_newTerm_interest = termResult.interest;
+                        if (sameEmi_newTerm !== Infinity) {
+                            sameEmi_newPayoffDate = getPaymentDate(startDateStr, sameEmi_newTerm);
+                        } else {
+                            sameEmi_newPayoffDate = 'Never';
+                        }
+                        
+                        if (sameEmi_newTerm !== Infinity) {
+                            scenarioData.push({
+                                label: 'New Term (Keep Base EMI)',
+                                emi: emi,
+                                term: sameEmi_newTerm,
+                                payoffDate: sameEmi_newPayoffDate,
+                                interest: sameEmi_newTerm_interest,
+                                color: '#f59e0b'
+                            });
+                        }
+                    } 
+                    
+                    // Scenario 2B: Keep Term Constant (Find New EMI - Variable Rate ONLY) - ADDED FOR USER REQUEST
+                    // NOTE: This scenario is identical to Scenario 1 but is included here for clarity if no prepayments are entered.
+                    // This scenario is removed as it's a duplicate of Scenario 1. We will manage the display logic based on Scenario 3.
+                    
+                    // Scenario 3: Reduced EMI (Keep Term Constant - WITH Prepayments)
+                    if (hasRateChanges || hasPrepayments) {
+                        const result = calculateNewEmiForSameTerm(
+                            principal, totalPayments, initialAnnualRate, rateChanges, 
+                            lumpSumPrepayments, monthlyExtraPrincipal, emi
+                        );
+                        if (result) {
+                            sameTerm_newEmi_withPrepayments = result.emi;
+                            sameTerm_newEmi_withPrepayments_interest = result.interest;
+                        }
+
+                        if (sameTerm_newEmi_withPrepayments !== null) {
+                            scenarioData.push({
+                                label: 'Reduced EMI (With Prepayments)',
+                                emi: sameTerm_newEmi_withPrepayments,
+                                term: totalPayments,
+                                payoffDate: originalPayoffDate,
+                                interest: sameTerm_newEmi_withPrepayments_interest,
+                                color: '#059669'
+                            });
+                        }
+                    }
+                }
+
+
+                // 5. Generate Amortization Schedule (with Pre-payments AND Variable Rate) - Accelerated Calculation
+                // This is the calculation used for the main schedule table and charts.
                 let balance = principal;
                 let totalInterest = 0;
                 let rowsHtml = '';
@@ -1073,27 +1656,39 @@
                     let startBalance = balance;
                     let monthlyEmi = emi;
                     
-                    let interestPaid = Math.round(startBalance * monthlyRate * 100) / 100;
-                    let scheduledPrincipal = Math.round((monthlyEmi - interestPaid) * 100) / 100;
+                    // Get the monthly rate for the current payment month
+                    const currentMonthlyRate = getCurrentMonthlyRate(paymentNum, initialAnnualRate, rateChanges);
+                    
+                    let interestPaid = Math.round(startBalance * currentMonthlyRate * 100) / 100;
+                    
+                    // The scheduled principal component is *always* calculated based on the fixed EMI
+                    let scheduledPrincipal = Math.round((monthlyEmi - interestPaid) * 100) / 100; 
                     
                     let extraPrincipalComponent = monthlyExtraPrincipal;
                     let lumpSum = lumpSumPrepayments[paymentNum] || 0;
                     extraPrincipalComponent += lumpSum;
                     
-                    let totalPrincipalPaid = scheduledPrincipal + extraPrincipalComponent;
+                    let totalPrincipalPaid = Math.max(0, scheduledPrincipal) + extraPrincipalComponent;
                     let totalMonthlyOutflow = monthlyEmi + extraPrincipalComponent;
                     
                     // Final Payment Check (Accelerated)
-                    if (startBalance < totalPrincipalPaid + interestPaid) {
+                    if (startBalance < totalPrincipalPaid) { // Check against total principal paid (scheduled + extra)
                         // Recalculate everything for the final payment to zero out the balance
-                        totalMonthlyOutflow = startBalance + interestPaid; 
+                        totalMonthlyOutflow = startBalance + interestPaid + extraPrincipalComponent; 
                         totalPrincipalPaid = startBalance;
                         
                         // For the EMI chart, scheduled principal component is capped by the final principal paid
-                        scheduledPrincipal = Math.min(scheduledPrincipal, totalPrincipalPaid);
+                        // and must be re-derived from the final payment calculation:
+                        scheduledPrincipal = Math.max(0, totalPrincipalPaid - extraPrincipalComponent);
                         
                         actualPayments = paymentNum;
-                    } 
+                    } else if (scheduledPrincipal < 0) {
+                        // Rate has increased so much that fixed EMI < interest. Scheduled principal is 0.
+                        // The payment is now interest + extra principal.
+                        totalPrincipalPaid = extraPrincipalComponent;
+                        totalMonthlyOutflow = interestPaid + extraPrincipalComponent;
+                        scheduledPrincipal = 0;
+                    }
                     
                     let newBalance = Math.round((startBalance - totalPrincipalPaid) * 100) / 100;
                     if (newBalance < 0) newBalance = 0;
@@ -1109,9 +1704,14 @@
                     
                     // Create the table row
                     const isExtraPayment = monthlyExtraPrincipal > 0 || lumpSum > 0;
+                    // Highlight the rate change month
+                    const isRateChangeMonth = rateChanges.some(change => change.month === paymentNum);
 
                     rowsHtml += `
-                        <tr class="hover:bg-gray-50 ${isExtraPayment ? 'bg-emerald-50' : ''} ${paymentNum > actualPayments ? 'hidden' : ''}">
+                        <tr class="hover:bg-gray-50 
+                            ${isRateChangeMonth ? 'bg-amber-50 border-y border-amber-300' : ''}
+                            ${isExtraPayment ? 'bg-emerald-50' : ''} 
+                            ${paymentNum > actualPayments ? 'hidden' : ''}">
                             <td class="px-3 py-2 whitespace-nowrap text-gray-500">${paymentNum}</td>
                             <td class="px-3 py-2 whitespace-nowrap text-gray-700">${getPaymentDate(startDateStr, paymentNum) || '--'}</td>
                             <td class="px-3 py-2 whitespace-nowrap text-gray-700">${formatter.format(startBalance)}</td>
@@ -1152,53 +1752,124 @@
                 const acceleratedPayoffDate = getPaymentDate(startDateStr, actualPayments);
 
                 // 6. Display Results
-                originalInterestDisplay.textContent = formatter.format(referenceTotalInterest);
-                originalOutflowDisplay.textContent = formatter.format(originalTotalOutflow);
-                acceleratedOutflowDisplay.textContent = formatter.format(acceleratedTotalOutflow);
-                termReducedDisplay.textContent = formatMonthsToYearsFormatted(termReducedMonths);
-                
-                originalPayoffDateDisplay.textContent = originalPayoffDate || '--';
-                acceleratedPayoffDateDisplay.textContent = acceleratedPayoffDate || '--';
-                
-                baseEmiDisplay.textContent = formatter.format(emi);
-                // NOTE: totalExtraPaymentsDisplay shows the *total* extra principal paid over the life of the loan.
-                totalExtraPaymentsDisplay.textContent = formatter.format(totalExtraPrincipalPaid); 
-                originalTermDisplay.textContent = `${totalPayments} months`;
-                newTermDisplay.textContent = `${actualPayments} months`;
-
-                totalInterestDisplay.textContent = formatter.format(totalInterest);
-                savingsDisplay.textContent = `${formatter.format(interestSaved)} / ${interestSavedPercent}%`;
-                
-                scheduleBody.innerHTML = rowsHtml;
-                resultsContainer.classList.remove('hidden');
-
-                // 6b. Update Status Box
-                updateLoanStatus(startDateStr, totalPayments, actualPayments);
-                
-                // 7. Render All Three Charts
-                renderCharts(
-                    principal, 
-                    chartLabels, 
-                    originalBalanceData, 
-                    acceleratedBalanceData, 
-                    emiChartScheduledPrincipalData, 
-                    emiChartInterestData, 
-                    interestSaved, 
-                    totalExtraPrincipalPaid,
-                    originalTotalOutflow,
-                    acceleratedTotalOutflow,
-                    referenceTotalInterest 
-                );
-                
-                // --- UX END (Success Path) ---
-                calculateBtn.disabled = false;
-                calculateBtn.textContent = 'Calculate Repayment Schedule';
-                
                 if (shouldScroll) {
-                    resultsContainer.scrollIntoView({ behavior: 'smooth' });
-                    displayMessage('Schedule and analysis calculated successfully!', 'success', true);
-                } else if (!messageBox.classList.contains('bg-red-100')) {
-                    clearMessage();
+                    originalInterestDisplay.textContent = formatter.format(referenceTotalInterest);
+                    originalOutflowDisplay.textContent = formatter.format(originalTotalOutflow);
+                    acceleratedOutflowDisplay.textContent = formatter.format(acceleratedTotalOutflow);
+                    termReducedDisplay.textContent = formatMonthsToYearsFormatted(termReducedMonths);
+                    
+                    originalPayoffDateDisplay.textContent = originalPayoffDate || '--';
+                    acceleratedPayoffDateDisplay.textContent = acceleratedPayoffDate || '--';
+                    
+                    baseEmiDisplay.textContent = formatter.format(emi);
+                    // NOTE: totalExtraPaymentsDisplay shows the *total* extra principal paid over the life of the loan.
+                    totalExtraPaymentsDisplay.textContent = formatter.format(totalExtraPrincipalPaid); 
+                    originalTermDisplay.textContent = `${totalPayments} months`;
+                    newTermDisplay.textContent = `${actualPayments} months`;
+
+                    totalInterestDisplay.textContent = formatter.format(totalInterest);
+                    savingsDisplay.textContent = `${formatter.format(interestSaved)} / ${interestSavedPercent}%`;
+                    
+                    // NEW: Build Adjustment Scenarios Table
+                    if (hasRateChanges || hasPrepayments) {
+                        adjustmentScenariosContainer.classList.remove('hidden');
+                        
+                        let tableHtml = '';
+                        let scenarioIndex = 1;
+
+                        // Scenario 0: Original Fixed Rate Plan (Benchmark)
+                        tableHtml += `
+                            <tr class="bg-gray-50 font-bold">
+                                <td class="px-3 py-2 text-gray-800">Original Fixed Rate Plan (Benchmark)</td>
+                                <td class="px-3 py-2 text-center text-gray-800">Fixed at ${initialAnnualRate}%</td>
+                                <td class="px-3 py-2 text-center text-indigo-700">${formatter.format(emi)}</td>
+                                <td class="px-3 py-2 text-center text-yellow-700">${totalPayments} months</td>
+                                <td class="px-3 py-2 text-center text-red-600">${formatter.format(referenceTotalInterest)}</td>
+                            </tr>
+                        `;
+
+                        // Scenario 1: Keep Term Constant (Find New EMI - Variable Rate ONLY)
+                        if (sameTerm_newEmi_variableOnly !== null && hasRateChanges) {
+                            tableHtml += `
+                                <tr class="bg-amber-50">
+                                    <td class="px-3 py-2 text-amber-800">${scenarioIndex++}. Keep **Term** Constant (Variable Rate Only)</td>
+                                    <td class="px-3 py-2 text-center text-gray-700">Variable Rate</td>
+                                    <td class="px-3 py-2 text-center text-indigo-700 font-bold">${formatter.format(sameTerm_newEmi_variableOnly)}</td>
+                                    <td class="px-3 py-2 text-center text-yellow-700">${totalPayments} months (Fixed)</td>
+                                    <td class="px-3 py-2 text-center text-red-600">${formatter.format(sameTerm_newEmi_variableOnly_interest)}</td>
+                                </tr>
+                            `;
+                        }
+                        
+                        // Scenario 2A: Keep EMI Constant (Find New Term - Variable Rate ONLY) - Traditional bank option after rate hike
+                        if (hasRateChanges && !hasPrepayments) { 
+                            const termString = sameEmi_newTerm === Infinity ? 'Never Paid Off' : `${sameEmi_newTerm} months`;
+                            tableHtml += `
+                                <tr class="bg-amber-100">
+                                    <td class="px-3 py-2 text-amber-800">${scenarioIndex++}. Keep **EMI** Constant (Variable Rate Only)</td>
+                                    <td class="px-3 py-2 text-center text-gray-700">Variable Rate</td>
+                                    <td class="px-3 py-2 text-center text-indigo-700">${formatter.format(emi)} (Fixed)</td>
+                                    <td class="px-3 py-2 text-center text-yellow-700 font-bold">${termString}</td>
+                                    <td class="px-3 py-2 text-center text-red-600">${sameEmi_newTerm_interest === Infinity ? '--' : formatter.format(sameEmi_newTerm_interest)}</td>
+                                </tr>
+                            `;
+                        }
+
+                        // Scenario 3: Reduced EMI (Keep Term Constant - WITH Prepayments) - USER's desired primary scenario after prepayment
+                        if (sameTerm_newEmi_withPrepayments !== null && hasPrepayments) {
+                             const prepaymentsString = monthlyExtraPrincipal > 0 ? 'Monthly + Lump Sums' : 'Lump Sums';
+                            tableHtml += `
+                                <tr class="bg-emerald-50">
+                                    <td class="px-3 py-2 text-emerald-800">${scenarioIndex++}. Keep **Term** Constant (With Prepayments)</td>
+                                    <td class="px-3 py-2 text-center text-gray-700">${prepaymentsString}</td>
+                                    <td class="px-3 py-2 text-center text-indigo-700 font-bold">${formatter.format(sameTerm_newEmi_withPrepayments)}</td>
+                                    <td class="px-3 py-2 text-center text-yellow-700">${totalPayments} months (Fixed)</td>
+                                    <td class="px-3 py-2 text-center text-red-600">${formatter.format(sameTerm_newEmi_withPrepayments_interest)}</td>
+                                </tr>
+                            `;
+                        }
+                        
+                        adjustmentTableBody.innerHTML = tableHtml;
+                        
+                    } else {
+                         // Hide all adjustment scenarios if no rate changes or prepayments are entered
+                         adjustmentScenariosContainer.classList.add('hidden');
+                    }
+
+
+                    scheduleBody.innerHTML = rowsHtml;
+                    resultsContainer.classList.remove('hidden');
+
+                    // 6b. Update Status Box
+                    updateLoanStatus(startDateStr, totalPayments, actualPayments);
+                    
+                    // 7. Render All Four Charts
+                    renderCharts(
+                        principal, 
+                        chartLabels, 
+                        originalBalanceData, 
+                        acceleratedBalanceData, 
+                        emiChartScheduledPrincipalData, 
+                        emiChartInterestData, 
+                        interestSaved, 
+                        totalExtraPrincipalPaid,
+                        originalTotalOutflow,
+                        acceleratedTotalOutflow,
+                        referenceTotalInterest,
+                        // NEW SCENARIO DATA for Cost Chart
+                        scenarioData 
+                    );
+                    
+                    // --- UX END (Success Path) ---
+                    calculateBtn.disabled = false;
+                    calculateBtn.textContent = 'Calculate Repayment Schedule';
+                    
+                    if (shouldScroll) {
+                        resultsContainer.scrollIntoView({ behavior: 'smooth' });
+                        displayMessage('Schedule and analysis calculated successfully!', 'success', true);
+                    } else if (!messageBox.classList.contains('bg-red-100')) {
+                        clearMessage();
+                    }
                 }
             }
             
@@ -1206,14 +1877,16 @@
             addPrepaymentInput();
             
             // Event Listeners
+            // FIX: Changed this listener from calculateSchedule(false) to the intended addPrepaymentInput()
             addPrepaymentBtn.addEventListener('click', () => addPrepaymentInput());
-            
+
             // Only scroll when manually clicking the calculate button
             calculateBtn.addEventListener('click', () => calculateSchedule(true)); 
 
             const mainInputs = document.querySelectorAll('#loanAmount, #loanType, #annualRate, #loanTermYears, #loanTermMonths, #startDate, #monthlyExtraPrincipal');
             mainInputs.forEach(input => {
-                input.addEventListener('input', () => calculateSchedule(false)); 
+                // *** IMPORTANT CHANGE: Remove 'input' event listener for main inputs ***
+                // input.addEventListener('input', () => calculateSchedule(false)); 
                 input.addEventListener('keypress', (e) => {
                     if (e.key === 'Enter') {
                         e.preventDefault();
@@ -1222,6 +1895,15 @@
                 });
             });
             
+            // --- Currency Change Listener (already calls calculateSchedule(false)) ---
+            // currencySelector.addEventListener('change', ... is already defined above
+
+            // --- Variable Rate Checkbox Listener (already calls calculateSchedule(false)) ---
+            // variableRateCheckbox.addEventListener('change', ... is already defined above
+            
+            // --- Prepayment Table Listeners (already calls calculateSchedule(false)) ---
+            // Listeners for inputs inside the dynamic prepayment rows are attached in addPrepaymentInput
+
             // Download Functions 
             function generateScheduleData() {
                 const rows = Array.from(scheduleBody.querySelectorAll('tr'));
@@ -1298,6 +1980,9 @@
             downloadCsvBtn.addEventListener('click', downloadCSV);
             downloadPdfBtn.addEventListener('click', downloadPDF);
 
+            // --- Initial Load Behavior ---
+            // Removed: calculateSchedule(false);
+            // Now relies on user input/click to trigger the first calculation, ensuring the screen starts blank.
         });
     </script>
 </body>
